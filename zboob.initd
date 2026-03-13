@@ -1,0 +1,16 @@
+#!/sbin/openrc-run
+
+name="zboob"
+description="WebRTC SFU meeting server"
+
+command="/root/zboob/zoom-clone"
+command_background=true
+directory="/root/zboob"
+pidfile="/run/${RC_SVCNAME}.pid"
+output_log="/var/log/${RC_SVCNAME}.log"
+error_log="/var/log/${RC_SVCNAME}.log"
+
+depend() {
+	need net
+	after firewall
+}
