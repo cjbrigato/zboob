@@ -86,7 +86,7 @@
             border-radius: 12px;
         }
 
-        .video-grid {
+        .video-grid {       
             flex: 1;
             display: grid;
             gap: 8px;
@@ -170,7 +170,10 @@
     <div class="join-card">
         <h1>Join Meeting</h1>
         <p>Enter a room name and your display name</p>
-        <input type="text" id="roomInput" placeholder="Room name" autocomplete="off">
+        <div style="position:relative">
+            <input type="text" id="roomInput" placeholder="Room name" autocomplete="off">
+            <span onclick="generateRoomName()" style="position:absolute;right:12px;top:12px;cursor:pointer;font-size:18px;user-select:none" title="Random room name">&#x1F3B2;</span>
+        </div>
         <input type="text" id="nameInput" placeholder="Your name" autocomplete="off">
         <button onclick="joinRoom()">Join</button>
     </div>
@@ -190,6 +193,79 @@
 </div>
 
 <script>
+const ADJECTIVES = [
+    'affreux','agile','aimable','ancien','amer','aqueux','arrogant','astral','austere','avare',
+    'bavard','biblique','bizarre','bleme','blette','borgne','bourgeonnant','brave','bruyant','brutal','bulbeux',
+    'calme','capable','celeste','charnu','chauve','chelou','chiant','chouette','clandestin','comestible',
+    'confit','consistant','contingent','contrefactuel','costaud','cracra','croquant','cruel','cru','curieux','cynique',
+    'decidable','deductif','deontique','dingue','discret','divin','docile','dodu','doux','doxastique','drole','dupe',
+    'ecossable','enorme','epice','epineux','epique','epistemique','eternal','etrange','exact','existentiel','exquis',
+    'fadasse','fameux','fane','farci','feroce','fertile','fibreux','fictif','fielleux','flambant',
+    'fletri','flippant','fondant','formel','fourbe','frais','frileux','frise','funeste',
+    'galant','gentil','germe','givrant','glacial','glorieux','gourmand','gracieux','grognon','grotte','grotesque',
+    'habile','hardi','hatif','hideux','humble','humide','hybride','hypocrite',
+    'godelien','ignoble','immense','immature','impoli','impossible','incomplet','indecidable','indexical',
+    'infame','ingrat','insolent','instable','intense','intuitionniste','invalide',
+    'jaloux','jovial','joyeux','juteux',
+    'kripkeen','lache','lent','leste','ligneux','louche','loufoque','lugubre','lunatique',
+    'mafieux','maudit','mediocre','mignon','modal','modeste','moisi','mollasse','monadique','monotone',
+    'morbide','mure','mutin','mystique',
+    'narquois','necessaire','nerveux','nocturne','noble','nominal','nonchalant','noueux',
+    'obscur','obtus','odieux','oisif','opaque','orbital',
+    'paisible','paradoxal','pataud','pelucheux','penible','perfide','pimpant','piquant','placide','plante','poivrant',
+    'polyvalent','pompeux','possible','potager','pourri','precieux','precoce','predicatif','propositionnel',
+    'quantifie','radin','rageur','rance','rapide','ratatine','recursif','refutable','reveur',
+    'rigide','robuste','rouquin','rustique','rustre',
+    'sacre','sale','satisfiable','sauvage','savant','savoureux','sec','semantique','sinistre','sombre',
+    'sournois','spatial','stoique','subtil','sucre','suffisant','suri','syntaxique',
+    'tardif','tautologique','temporel','tenace','tendre','terrible','timide','tordu','toxique',
+    'transcendantal','tremblant','truculent','tubercule','turbulent',
+    'ultime','universel','urbain','usurpe','utopique',
+    'vaillant','valide','vaseux','venere','verdoyant','veridique','versatile','vert','vexant',
+    'vicieux','vigilant','vitreux','vivace','vorace',
+    'zinzin','zele'
+];
+const NOMS = [
+    'abricot','agrume','ail','anchois','aneth','anorak','antinomie','aporie','artichaut','asperge','asticot',
+    'aubergine','automate','avocat','axiome',
+    'babouin','banane','bandit','basilic','betterave','bidet','biconditionnelle','biscuit','blaireau','blette',
+    'brocoli','boudin','brioche','brouwer',
+    'cactus','cafard','caillou','caniche','cantor','cardon','caribou','carnap','carotte','cassis','castor',
+    'celeri','cerise','champignon','chanterelle','chariot','chataigne','chicoree','choufleur','church',
+    'ciboulette','citron','citrouille','cloporte','cochon','coing','colrave','completude','concombre',
+    'conjonction','connecteur','coriandre','cornichon','courge','courgette','crapaud','cresson','crocodile',
+    'datte','deduction','deonticien','dindon','disjonction','dragon','dromadaire',
+    'echalote','ecureuil','endive','epinard','escargot','espadon','estragon',
+    'fantome','fenouil','feve','figue','flageolet','flamant','frege','frelon','framboise','fromage','furet',
+    'gaufre','gentzen','gingembre','godel','gombo','gorille','grillon','groseille','guepard',
+    'hamster','hareng','haricot','hegel','herisson','heyting','hibou','hilbert','homard','hublot',
+    'iceberg','iguane','implication','indexical',
+    'jacuzzi','jambon','kangourou','ketchup','kiwi','kleene','kripke',
+    'laitue','lama','langouste','leibniz','lemme','lentille','lewis','limacon','lukasiewicz','lupin','lutin',
+    'mache','mais','mammouth','manchot','mangue','manioc','maringouin','melon','menthe','meta-theoreme',
+    'mirabelle','modele','monade','montague','morille','moustique','mulot','myrtille',
+    'navet','narval','negation','noisette','noix','nougat',
+    'ocelot','oignon','okapi','olive','operateur','oseille','oursin',
+    'pamplemousse','panais','pangolin','papillon','paradoxe','pasteque','patate','patisson','peano','peirce',
+    'pelican','persil','phoque','piment','pingouin','pistache','poireau','pois','poivron','possible',
+    'potimarron','potiron','poulpe','predicat','premisse','prune','pruneau','putnam','putois',
+    'quantificateur','queue-de-renard','quetsche','quine',
+    'rabbiole','radis','ragondin','raifort','raisin','ravioli','renard','requin','rhubarbe','robot',
+    'romarin','roquette','russell','rutabaga',
+    'safran','salami','salsifis','sardine','sarriette','saumon','sauge','scorpion','semantique',
+    'serpentin','signifiant','soja','sushi','syllogisme',
+    'tamarin','tarski','tatou','termite','theoreme','thon','thym','tomate','topinambour','toucan',
+    'treillis','triton','truffe','turing','turnep',
+    'urubu','vampire','vanille','variable','vautour','verveine','wittgenstein','wombat','wasabi',
+    'yak','zebre','zeppelin','zermelo'
+];
+
+function generateRoomName() {
+    const a = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+    const n = NOMS[Math.floor(Math.random() * NOMS.length)];
+    document.getElementById('roomInput').value = a + '-' + n;
+}
+
 let ws;
 let pc;
 let localStream;
@@ -204,7 +280,7 @@ let pendingRenegotiation = false;
 const participants = new Set();
 
 function joinRoom() {
-    roomId = document.getElementById('roomInput').value.trim();
+    roomId = document.getElementById('roomInput').value.trim().toLowerCase();
     userId = document.getElementById('nameInput').value.trim();
     if (!roomId || !userId) return;
 
@@ -420,6 +496,16 @@ function leaveRoom() {
     document.getElementById('joinScreen').style.display = 'flex';
     participants.clear();
 }
+
+// Pre-fill room from URL path (e.g. /salle-magique) or query param
+(function() {
+    const path = location.pathname.replace(/^\/+/, '');
+    const urlParams = new URLSearchParams(location.search);
+    const room = path || urlParams.get('room') || '';
+    if (room) document.getElementById('roomInput').value = room;
+    const name = urlParams.get('name') || '';
+    if (name) document.getElementById('nameInput').value = name;
+})();
 
 // Handle Enter key on inputs
 document.getElementById('roomInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('nameInput').focus(); });

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
@@ -16,8 +17,21 @@ var upgrader = websocket.Upgrader{
 var roomManager = NewRoomManager()
 
 func main() {
-	http.Handle("/", http.FileServer(http.Dir("web")))
+	fs := http.FileServer(http.Dir("web"))
 	http.HandleFunc("/ws", handleWebSocket)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Serve static files if they exist, otherwise serve index.html (SPA fallback)
+		if r.URL.Path != "/" {
+			// Try to serve the file directly
+			f, err := http.Dir("web").Open(r.URL.Path)
+			if err == nil {
+				f.Close()
+				fs.ServeHTTP(w, r)
+				return
+			}
+		}
+		http.ServeFile(w, r, "web/index.html")
+	})
 
 	log.Println("Server starting on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
@@ -51,7 +65,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if participant != nil {
 				continue // already joined
 			}
-			roomID = msg.RoomID
+			roomID = strings.ToLower(msg.RoomID)
 			room := roomManager.GetOrCreateRoom(roomID)
 
 			pc, pcErr := CreatePeerConnection()
