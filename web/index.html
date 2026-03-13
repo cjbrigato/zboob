@@ -263,7 +263,7 @@ const NOMS = [
 function generateRoomName() {
     const a = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
     const n = NOMS[Math.floor(Math.random() * NOMS.length)];
-    document.getElementById('roomInput').value = a + '-' + n;
+    document.getElementById('roomInput').value = n + '-' + a;
 }
 
 let ws;
