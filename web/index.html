@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meeting</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f1a;
+            color: #e0e0e0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Join screen */
+        #joinScreen {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        .join-card {
+            background: #1a1a2e;
+            border-radius: 16px;
+            padding: 40px;
+            width: 360px;
+            text-align: center;
+        }
+        .join-card h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+            color: #fff;
+        }
+        .join-card p {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 28px;
+        }
+        .join-card input {
+            width: 100%;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: #0f0f1a;
+            color: #fff;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .join-card input:focus { border-color: #5568f2; }
+        .join-card button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: #5568f2;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: background 0.2s;
+        }
+        .join-card button:hover { background: #4452cc; }
+
+        /* Meeting screen */
+        #meetingScreen { display: none; height: 100vh; flex-direction: column; }
+        #meetingScreen.active { display: flex; }
+
+        .top-bar {
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #1a1a2e;
+        }
+        .top-bar .room-name { font-size: 14px; color: #aaa; }
+        .top-bar .participant-count {
+            font-size: 13px;
+            color: #888;
+            background: #2a2a3e;
+            padding: 4px 10px;
+            border-radius: 12px;
+        }
+
+        .video-grid {
+            flex: 1;
+            display: grid;
+            gap: 8px;
+            padding: 8px;
+            overflow: hidden;
+        }
+        .video-container {
+            position: relative;
+            background: #1a1a2e;
+            border-radius: 12px;
+            overflow: hidden;
+            min-height: 0;
+        }
+        .video-container video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .video-label {
+            position: absolute;
+            bottom: 8px;
+            left: 8px;
+            color: #fff;
+            background: rgba(0,0,0,0.6);
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .video-muted-icon {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            color: #ff4757;
+            font-size: 18px;
+            display: none;
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 14px;
+            background: #1a1a2e;
+        }
+        .toolbar button {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        .btn-toggle {
+            background: #2a2a3e;
+            color: #fff;
+        }
+        .btn-toggle:hover { background: #3a3a4e; }
+        .btn-toggle.off {
+            background: #ff4757;
+            color: #fff;
+        }
+        .btn-leave {
+            background: #ff4757;
+            color: #fff;
+            width: 64px;
+            border-radius: 24px;
+        }
+        .btn-leave:hover { background: #e8384a; }
+    </style>
+</head>
+<body>
+
+<div id="joinScreen">
+    <div class="join-card">
+        <h1>Join Meeting</h1>
+        <p>Enter a room name and your display name</p>
+        <input type="text" id="roomInput" placeholder="Room name" autocomplete="off">
+        <input type="text" id="nameInput" placeholder="Your name" autocomplete="off">
+        <button onclick="joinRoom()">Join</button>
+    </div>
+</div>
+
+<div id="meetingScreen">
+    <div class="top-bar">
+        <span class="room-name" id="roomLabel"></span>
+        <span class="participant-count" id="participantCount">1</span>
+    </div>
+    <div class="video-grid" id="videoGrid"></div>
+    <div class="toolbar">
+        <button class="btn-toggle" id="btnMic" onclick="toggleMic()" title="Toggle microphone">&#x1F3A4;</button>
+        <button class="btn-toggle" id="btnCam" onclick="toggleCam()" title="Toggle camera">&#x1F4F7;</button>
+        <button class="btn-leave" onclick="leaveRoom()" title="Leave meeting">&#x1F6AA;</button>
+    </div>
+</div>
+
+<script>
+let ws;
+let pc;
+let localStream;
+let userId;
+let roomId;
+let micEnabled = true;
+let camEnabled = true;
+let isNegotiating = false;
+let pendingRenegotiation = false;
+
+// Track participant count
+const participants = new Set();
+
+function joinRoom() {
+    roomId = document.getElementById('roomInput').value.trim();
+    userId = document.getElementById('nameInput').value.trim();
+    if (!roomId || !userId) return;
+
+    document.getElementById('joinScreen').style.display = 'none';
+    document.getElementById('meetingScreen').classList.add('active');
+    document.getElementById('roomLabel').textContent = roomId;
+
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(`${proto}//${location.host}/ws`);
+
+    ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'join', roomId, userId }));
+    };
+
+    ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        switch (msg.type) {
+            case 'room-info':
+                initMedia(msg.participants || []);
+                break;
+            case 'participant-joined':
+                participants.add(msg.userId);
+                updateParticipantCount();
+                break;
+            case 'participant-left':
+                removeParticipantVideo(msg.userId);
+                participants.delete(msg.userId);
+                updateParticipantCount();
+                break;
+            case 'renegotiate':
+                doNegotiation();
+                break;
+            case 'answer':
+                if (pc) {
+                    pc.setRemoteDescription({ type: 'answer', sdp: msg.sdp }).then(() => {
+                        isNegotiating = false;
+                        if (pendingRenegotiation) {
+                            pendingRenegotiation = false;
+                            doNegotiation();
+                        }
+                    });
+                }
+                break;
+            case 'ice-candidate':
+                if (pc && msg.candidate) {
+                    pc.addIceCandidate(msg.candidate).catch(() => {});
+                }
+                break;
+        }
+    };
+
+    ws.onclose = () => {
+        console.log('WebSocket closed');
+    };
+}
+
+async function initMedia(existingParticipants) {
+    existingParticipants.forEach(id => participants.add(id));
+    participants.add(userId);
+    updateParticipantCount();
+
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    } catch (e) {
+        console.error('getUserMedia failed:', e);
+        // Try video only
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        } catch (e2) {
+            console.error('video only also failed:', e2);
+            return;
+        }
+    }
+
+    addVideoTile('local', localStream, userId + ' (You)', true);
+
+    pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    });
+
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+    pc.ontrack = (event) => {
+        const stream = event.streams[0];
+        if (!stream) return;
+        const streamId = stream.id;
+
+        // Check if we already have a tile for this stream
+        if (document.getElementById('tile-' + streamId)) return;
+
+        addVideoTile(streamId, stream, streamId, false);
+        participants.add(streamId);
+        updateParticipantCount();
+
+        // Handle stream removal
+        stream.onremovetrack = () => {
+            if (stream.getTracks().length === 0) {
+                removeParticipantVideo(streamId);
+            }
+        };
+    };
+
+    pc.onicecandidate = (event) => {
+        if (event.candidate) {
+            ws.send(JSON.stringify({
+                type: 'ice-candidate',
+                candidate: event.candidate
+            }));
+        }
+    };
+
+    pc.onnegotiationneeded = () => {
+        doNegotiation();
+    };
+}
+
+async function doNegotiation() {
+    if (!pc || !ws) return;
+    if (isNegotiating) {
+        pendingRenegotiation = true;
+        return;
+    }
+    isNegotiating = true;
+    try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        ws.send(JSON.stringify({ type: 'offer', sdp: offer.sdp }));
+    } catch (e) {
+        console.error('negotiation error:', e);
+        isNegotiating = false;
+    }
+}
+
+function addVideoTile(id, stream, label, muted) {
+    const grid = document.getElementById('videoGrid');
+
+    const container = document.createElement('div');
+    container.className = 'video-container';
+    container.id = 'tile-' + id;
+
+    const video = document.createElement('video');
+    video.autoplay = true;
+    video.playsInline = true;
+    video.muted = !!muted;
+    video.srcObject = stream;
+
+    const labelDiv = document.createElement('div');
+    labelDiv.className = 'video-label';
+    labelDiv.textContent = label;
+
+    container.appendChild(video);
+    container.appendChild(labelDiv);
+    grid.appendChild(container);
+
+    updateGridLayout();
+}
+
+function removeParticipantVideo(id) {
+    // Try by stream id
+    const tile = document.getElementById('tile-' + id);
+    if (tile) {
+        tile.remove();
+        updateGridLayout();
+    }
+}
+
+function updateGridLayout() {
+    const grid = document.getElementById('videoGrid');
+    const count = grid.children.length;
+
+    let cols;
+    if (count <= 1) cols = 1;
+    else if (count <= 4) cols = 2;
+    else if (count <= 9) cols = 3;
+    else cols = 4;
+
+    grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+}
+
+function updateParticipantCount() {
+    const el = document.getElementById('participantCount');
+    const count = document.getElementById('videoGrid').children.length;
+    el.textContent = count + (count === 1 ? ' participant' : ' participants');
+}
+
+function toggleMic() {
+    if (!localStream) return;
+    micEnabled = !micEnabled;
+    localStream.getAudioTracks().forEach(t => t.enabled = micEnabled);
+    const btn = document.getElementById('btnMic');
+    btn.classList.toggle('off', !micEnabled);
+    btn.textContent = micEnabled ? '\u{1F3A4}' : '\u{1F507}';
+}
+
+function toggleCam() {
+    if (!localStream) return;
+    camEnabled = !camEnabled;
+    localStream.getVideoTracks().forEach(t => t.enabled = camEnabled);
+    const btn = document.getElementById('btnCam');
+    btn.classList.toggle('off', !camEnabled);
+    btn.textContent = camEnabled ? '\u{1F4F7}' : '\u{1F6AB}';
+}
+
+function leaveRoom() {
+    if (pc) { pc.close(); pc = null; }
+    if (ws) { ws.close(); ws = null; }
+    if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+        localStream = null;
+    }
+    document.getElementById('videoGrid').innerHTML = '';
+    document.getElementById('meetingScreen').classList.remove('active');
+    document.getElementById('joinScreen').style.display = 'flex';
+    participants.clear();
+}
+
+// Handle Enter key on inputs
+document.getElementById('roomInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('nameInput').focus(); });
+document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') joinRoom(); });
+</script>
+</body>
+</html>
